@@ -1,0 +1,793 @@
+
+                                <!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLT TrafficPulse - Charlotte Real-Time Traffic & UNCC Transit Hub</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons with Fallback Handling -->
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .pulse-red {
+            animation: pulse-red-anim 2s infinite;
+        }
+        @keyframes pulse-red-anim {
+            0% { transform: scale(0.95); opacity: 0.9; }
+            70% { transform: scale(1.15); opacity: 0.4; }
+            100% { transform: scale(0.95); opacity: 0.9; }
+        }
+        
+        /* Interactive SVG map styles */
+        .map-road { stroke-linecap: round; stroke-linejoin: round; transition: all 0.3s ease; }
+        .map-road:hover { stroke-width: 6px; cursor: pointer; }
+        .marker-pin { transition: transform 0.2s ease; cursor: pointer; }
+        .marker-pin:hover { transform: scale(1.25); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col custom-scrollbar overflow-x-hidden">
+
+    <!-- Top Announcement Bar -->
+    <div class="bg-emerald-600/90 text-slate-950 px-4 py-1.5 text-xs font-semibold flex justify-between items-center z-20">
+        <div class="flex items-center gap-2">
+            <span class="bg-slate-950 text-emerald-400 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">UNCC Traffic Advisory</span>
+            <span>W.T. Harris Blvd & University City Blvd lane adjustments during peak rush hours.</span>
+        </div>
+        <a href="#uncc-section" class="hover:underline flex items-center gap-1 font-bold">
+            UNC Charlotte Commuter Info <i data-lucide="arrow-right" class="w-3 h-3"></i>
+        </a>
+    </div>
+
+    <!-- Main Navigation Header -->
+    <header class="bg-slate-900 border-b border-slate-800 px-4 lg:px-8 py-3 flex items-center justify-between sticky top-0 z-30 shadow-xl backdrop-blur bg-opacity-95">
+        <div class="flex items-center space-x-3">
+            <div class="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 shadow-inner">
+                <i data-lucide="navigation" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <h1 class="text-xl font-black tracking-tight text-white uppercase">CLT <span class="text-emerald-400">TrafficPulse</span></h1>
+                    <span class="bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-0.5 rounded-full font-semibold border border-emerald-500/30 flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Live Charlotte Feed
+                    </span>
+                </div>
+                <p class="text-xs text-slate-400">Real-Time Traffic, CATS Light Rail & UNCC Campus Transit Tracker</p>
+            </div>
+        </div>
+
+        <nav class="hidden md:flex items-center space-x-6 text-xs font-semibold text-slate-300">
+            <a href="#map-section" class="hover:text-emerald-400 transition flex items-center gap-1"><i data-lucide="map" class="w-3.5 h-3.5"></i> Live Map</a>
+            <a href="#analytics-section" class="hover:text-emerald-400 transition flex items-center gap-1"><i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i> Congestion Analytics</a>
+            <a href="#incidents-section" class="hover:text-emerald-400 transition flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Incidents</a>
+            <a href="#cats-section" class="hover:text-emerald-400 transition flex items-center gap-1"><i data-lucide="train" class="w-3.5 h-3.5"></i> LYNX Light Rail</a>
+            <a href="#report-section" class="hover:text-emerald-400 transition flex items-center gap-1"><i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Submit Alert</a>
+            <a href="#about-section" class="hover:text-emerald-400 transition flex items-center gap-1"><i data-lucide="info" class="w-3.5 h-3.5"></i> About</a>
+        </nav>
+
+        <div class="flex items-center space-x-3">
+            <button onclick="refreshData()" class="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 transition text-xs font-medium">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refresh-icon"></i>
+                <span class="hidden sm:inline">Sync Data</span>
+            </button>
+            <div class="text-right hidden sm:block">
+                <div id="live-clock" class="text-xs font-mono font-bold text-emerald-400">--:--:-- PM</div>
+                <div class="text-[10px] text-slate-400">Charlotte, NC (EST)</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Header / Metric Stats Banner -->
+    <section class="bg-slate-900/60 border-b border-slate-800 px-4 lg:px-8 py-6">
+        <div class="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex items-center gap-3">
+                <div class="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400">
+                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-black text-white" id="stat-accidents">2</div>
+                    <div class="text-xs text-slate-400 font-medium">Active Accidents</div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex items-center gap-3">
+                <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400">
+                    <i data-lucide="hard-hat" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-black text-white" id="stat-works">3</div>
+                    <div class="text-xs text-slate-400 font-medium">Workzones & Work</div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex items-center gap-3">
+                <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400">
+                    <i data-lucide="train" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-black text-emerald-400">On Time</div>
+                    <div class="text-xs text-slate-400 font-medium">LYNX Blue Line</div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex items-center gap-3">
+                <div class="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg text-blue-400">
+                    <i data-lucide="clock" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-black text-white">22 mins</div>
+                    <div class="text-xs text-slate-400 font-medium">Uptown to UNCC Avg</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Charlotte Traffic Congestion Analytics & Rush Hour Chart Section -->
+    <section id="analytics-section" class="bg-slate-900/80 border-b border-slate-800 px-4 lg:px-8 py-8">
+        <div class="max-w-7xl mx-auto space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-emerald-400"></i> Charlotte & UNCC Peak Rush Hour Analytics
+                    </h2>
+                    <p class="text-xs text-slate-400">Average hourly traffic density based on I-77, I-85, W.T. Harris, and University Blvd corridor data</p>
+                </div>
+
+                <!-- Day Mode Selector Tabs -->
+                <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+                    <button id="chart-btn-weekday" onclick="updateTrafficChart('weekday')" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white shadow transition">
+                        Mon - Fri (Weekday Rush)
+                    </button>
+                    <button id="chart-btn-weekend" onclick="updateTrafficChart('weekend')" class="px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-white transition">
+                        Sat - Sun (Weekend)
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- Bar Chart Canvas Box -->
+                <div class="lg:col-span-3 bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+                    <div class="flex justify-between items-center text-xs mb-4">
+                        <div class="flex items-center gap-4">
+                            <span class="text-slate-400 font-semibold">Congestion Levels:</span>
+                            <span class="flex items-center gap-1.5 text-emerald-400"><span class="w-2.5 h-2.5 rounded bg-emerald-500"></span> Smooth Flow (&lt;50%)</span>
+                            <span class="flex items-center gap-1.5 text-amber-400"><span class="w-2.5 h-2.5 rounded bg-amber-500"></span> Moderate (50-75%)</span>
+                            <span class="flex items-center gap-1.5 text-red-400"><span class="w-2.5 h-2.5 rounded bg-red-500"></span> Heavy Rush (&gt;75%)</span>
+                        </div>
+                        <span id="chart-schedule-label" class="text-slate-400 font-mono text-[11px]">Weekday Pattern</span>
+                    </div>
+
+                    <!-- Interactive Dynamic Bar Chart -->
+                    <div class="h-56 flex items-end justify-between gap-1.5 sm:gap-3 pt-6 pb-2 px-2 border-b border-slate-800" id="traffic-bars-container">
+                        <!-- Bars dynamically rendered by JavaScript -->
+                    </div>
+
+                    <!-- X-Axis Hours Labels -->
+                    <div class="flex justify-between text-[10px] text-slate-400 font-mono mt-2 px-1">
+                        <span>5 AM</span>
+                        <span>7 AM</span>
+                        <span>9 AM</span>
+                        <span>11 AM</span>
+                        <span>1 PM</span>
+                        <span>3 PM</span>
+                        <span>5 PM</span>
+                        <span>7 PM</span>
+                        <span>9 PM</span>
+                    </div>
+                </div>
+
+                <!-- Peak Insights Side Panel -->
+                <div class="bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-4">
+                    <div>
+                        <h3 class="font-bold text-white text-sm flex items-center gap-2 mb-3">
+                            <i data-lucide="clock-alert" class="w-4 h-4 text-amber-400"></i> Critical Rush Hours
+                        </h3>
+
+                        <div class="space-y-3 text-xs">
+                            <div class="p-3 bg-red-500/10 border border-red-500/30 rounded-xl space-y-1">
+                                <div class="font-bold text-red-400 flex justify-between">
+                                    <span>Morning Rush Peak</span>
+                                    <span>7:30 AM - 9:00 AM</span>
+                                </div>
+                                <p class="text-[11px] text-slate-300">Heavy inbound traffic towards Uptown & UNCC campus classes on I-85 & University Blvd.</p>
+                            </div>
+
+                            <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1">
+                                <div class="font-bold text-amber-400 flex justify-between">
+                                    <span>Evening Commute Peak</span>
+                                    <span>4:30 PM - 6:30 PM</span>
+                                </div>
+                                <p class="text-[11px] text-slate-300">Primary bottleneck at I-77 N/S merge and W.T. Harris Blvd exiting university parking decks.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs space-y-1">
+                        <span class="text-emerald-400 font-bold block">💡 Commuter Tip:</span>
+                        <p class="text-slate-400 text-[11px]">Travel between 10:00 AM and 2:30 PM to save an average of 18 minutes on Charlotte interstates.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Incidents & Live Alert Feed Section -->
+    <section id="incidents-section" class="bg-slate-900/40 border-y border-slate-800 px-4 lg:px-8 py-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-400"></i> Live Charlotte Traffic Incidents & Roadwork
+                    </h2>
+                    <p class="text-xs text-slate-400">Verified reports from CMPD, NCDOT, and local traffic monitoring</p>
+                </div>
+                <div class="text-xs text-slate-400">Updated every 60 seconds</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="incidents-grid">
+                <!-- Incident Cards render dynamically -->
+            </div>
+        </div>
+    </section>
+
+    <!-- LYNX Light Rail Transit Hub Section -->
+    <section id="cats-section" class="px-4 lg:px-8 py-8 max-w-7xl mx-auto w-full">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 lg:p-8 shadow-2xl relative overflow-hidden">
+            <div class="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <div class="lg:col-span-1 space-y-4">
+                    <span class="bg-cyan-500/20 text-cyan-400 text-xs px-3 py-1 rounded-full border border-cyan-500/30 font-bold uppercase tracking-wider inline-flex items-center gap-1.5">
+                        <i data-lucide="train" class="w-3.5 h-3.5"></i> CATS Transit Tracker
+                    </span>
+                    <h2 class="text-2xl font-black text-white">LYNX Blue Line Campus Connector</h2>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        The LYNX Blue Line provides direct light rail service between Uptown Charlotte and UNC Charlotte main campus (JW Clay Blvd and UNC Charlotte Main Station). Skip highway traffic during peak rush hours!
+                    </p>
+                    <div class="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-400">Service Frequency:</span>
+                            <span class="text-cyan-400 font-bold">Every 15 mins</span>
+                        </div>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-400">Uptown to UNCC Transit Time:</span>
+                            <span class="text-white font-bold">~26 mins</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 space-y-3">
+                    <h3 class="text-sm font-bold text-slate-200 mb-3">Live Light Rail Station Schedule (Northbound to UNCC)</h3>
+                    
+                    <div class="space-y-2 text-xs">
+                        <div class="p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold">CTC</div>
+                                <div>
+                                    <div class="font-bold text-white">Charlotte Transportation Center (Uptown)</div>
+                                    <div class="text-[11px] text-slate-400">Center City Station</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-emerald-400 font-bold">On Time</span>
+                                <div class="text-[11px] text-slate-300">Next: 4 mins</div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold">36th</div>
+                                <div>
+                                    <div class="font-bold text-white">36th Street Station (NoDa District)</div>
+                                    <div class="text-[11px] text-slate-400">Midtown Transit Node</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-emerald-400 font-bold">On Time</span>
+                                <div class="text-[11px] text-slate-300">Next: 11 mins</div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">JWC</div>
+                                <div>
+                                    <div class="font-bold text-white">JW Clay Blvd / UNCC Station</div>
+                                    <div class="text-[11px] text-slate-400">Campus West Parking Deck Access</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-emerald-400 font-bold">On Time</span>
+                                <div class="text-[11px] text-slate-300">Next: 22 mins</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Community Traffic Reporter Section -->
+    <section id="report-section" class="px-4 lg:px-8 py-8 max-w-7xl mx-auto w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-5 h-5 text-emerald-400"></i> Submit Real-Time Charlotte Traffic Alert
+                    </h2>
+                    <p class="text-xs text-slate-400">Spotted a crash, stalled car, or police activity around Charlotte or UNCC campus? Report it below.</p>
+                </div>
+
+                <form onsubmit="submitAlert(event)" class="space-y-4 text-xs">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-slate-300 font-medium mb-1">Incident Category</label>
+                            <select id="report-type" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500">
+                                <option value="crash">Accident / Collision</option>
+                                <option value="hazard">Road Hazard / Debris</option>
+                                <option value="construction">Roadwork / Construction</option>
+                                <option value="congestion">Heavy Slowdown / Stalls</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-slate-300 font-medium mb-1">Location / Street Corridor</label>
+                            <input type="text" id="report-loc" placeholder="e.g. I-85 North Exit 45 or Craver Rd" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500" required>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-300 font-medium mb-1">Alert Details & Description</label>
+                        <textarea id="report-desc" rows="3" placeholder="Describe the hazard, blocked lanes, or expected delays..." class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500" required></textarea>
+                    </div>
+
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-3 rounded-xl transition shadow-lg flex items-center gap-2">
+                        <i data-lucide="send" class="w-4 h-4"></i> Post Live Traffic Alert
+                    </button>
+                </form>
+                <div id="report-success" class="hidden p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-semibold">
+                    ✓ Alert submitted successfully! Live traffic map and incident feed updated.
+                </div>
+            </div>
+
+            <!-- Emergency & Support Resources -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                <h3 class="font-bold text-white text-base flex items-center gap-2">
+                    <i data-lucide="phone" class="w-5 h-5 text-emerald-400"></i> Emergency & Roads Helpline
+                </h3>
+                
+                <div class="space-y-3 text-xs">
+                    <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
+                        <div class="font-bold text-slate-200">NCDOT Highway Incident Help</div>
+                        <div class="text-emerald-400 font-mono font-bold mt-1">Dial *HP (*47)</div>
+                    </div>
+
+                    <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
+                        <div class="font-bold text-slate-200">UNC Charlotte Campus Police / Escort</div>
+                        <div class="text-emerald-400 font-mono font-bold mt-1">704-687-2200</div>
+                    </div>
+
+                    <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
+                        <div class="font-bold text-slate-200">CATS Transit Info Hotline</div>
+                        <div class="text-emerald-400 font-mono font-bold mt-1">704-336-RIDE (7433)</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- About Platform Section -->
+    <section id="about-section" class="bg-slate-900/50 border-t border-slate-800 px-4 lg:px-8 py-12">
+        <div class="max-w-4xl mx-auto text-center space-y-4">
+            <h2 class="text-2xl font-black text-white">About CLT TrafficPulse</h2>
+            <p class="text-xs text-slate-300 leading-relaxed max-w-2xl mx-auto">
+                CLT TrafficPulse is a real-time traffic and transit dashboard built specifically for Charlotte commuters, residents, and UNC Charlotte students. By combining live highway incident feeds, NCDOT traffic camera feeds, and CATS LYNX Light Rail schedules into a single responsive hub, users can navigate Charlotte road networks efficiently.
+            </p>
+            <div class="flex flex-wrap justify-center gap-4 text-xs font-semibold text-emerald-400 pt-2">
+                <span class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">✓ I-77 & I-85 Express Monitoring</span>
+                <span class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">✓ UNCC Main & Center City Access</span>
+                <span class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">✓ Zero External Map Tokens Needed</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-slate-950 border-t border-slate-800 px-4 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                © 2026 CLT TrafficPulse • Charlotte Traffic & UNC Charlotte Campus Transit Hub
+            </div>
+            <div class="flex space-x-4 text-slate-400">
+                <a href="#map-section" class="hover:underline">Map Grid</a>
+                <a href="#incidents-section" class="hover:underline">Incidents</a>
+                <a href="#cats-section" class="hover:underline">CATS Light Rail</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Application Script -->
+    <script>
+        // Traffic Congestion Hourly Datasets (5 AM to 9 PM)
+        const trafficData = {
+            weekday: [
+                { time: '5 AM', val: 20 },
+                { time: '6 AM', val: 45 },
+                { time: '7 AM', val: 82 },
+                { time: '8 AM', val: 96 },
+                { time: '9 AM', val: 78 },
+                { time: '10 AM', val: 42 },
+                { time: '11 AM', val: 38 },
+                { time: '12 PM', val: 55 },
+                { time: '1 PM', val: 48 },
+                { time: '2 PM', val: 52 },
+                { time: '3 PM', val: 70 },
+                { time: '4 PM', val: 88 },
+                { time: '5 PM', val: 98 },
+                { time: '6 PM', val: 85 },
+                { time: '7 PM', val: 50 },
+                { time: '8 PM', val: 32 },
+                { time: '9 PM', val: 22 }
+            ],
+            weekend: [
+                { time: '5 AM', val: 10 },
+                { time: '6 AM', val: 15 },
+                { time: '7 AM', val: 25 },
+                { time: '8 AM', val: 35 },
+                { time: '9 AM', val: 45 },
+                { time: '10 AM', val: 58 },
+                { time: '11 AM', val: 68 },
+                { time: '12 PM', val: 75 },
+                { time: '1 PM', val: 78 },
+                { time: '2 PM', val: 52 },
+                { time: '3 PM', val: 65 },
+                { time: '4 PM', val: 62 },
+                { time: '5 PM', val: 58 },
+                { time: '6 PM', val: 52 },
+                { time: '7 PM', val: 44 },
+                { time: '8 PM', val: 35 },
+                { time: '9 PM', val: 25 }
+            ]
+        };
+
+        const incidentsData = [
+            {
+                id: 1,
+                type: 'crash',
+                title: 'Accident on I-85 Northbound',
+                location: 'Near Exit 45 (WT Harris Blvd / UNCC Corridor)',
+                severity: 'high',
+                delay: '18 min delay',
+                time: '10 mins ago',
+                description: 'Two-vehicle collision blocking right lane. Emergency responders on scene. Major delay heading toward UNC Charlotte campus.'
+            },
+            {
+                id: 2,
+                type: 'hazard',
+                title: 'Disabled Vehicle on I-77 Southbound',
+                location: 'At Exit 11 (I-277 / Brookshire Fwy - Uptown)',
+                severity: 'medium',
+                delay: '8 min delay',
+                time: '20 mins ago',
+                description: 'Center lane partially blocked. Slow traffic stretching toward LaSalle Street.'
+            },
+            {
+                id: 3,
+                type: 'construction',
+                title: 'Roadwork on University Blvd (US-29)',
+                location: 'Near UNC Charlotte Main Entrance & JW Clay Blvd',
+                severity: 'medium',
+                delay: '5 min delay',
+                time: 'Ongoing',
+                description: 'Lane reduction inbound toward campus for utility line repairs until 4:00 PM.'
+            }
+        ];
+
+        // Safe icon initialization helper for GitHub Pages static hosting
+        function initIcons() {
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initIcons();
+            renderIncidents();
+            renderTrafficChart('weekday');
+            startClock();
+        });
+
+        // Backup handler for window load
+        window.addEventListener('load', function() {
+            initIcons();
+        });
+
+        function renderTrafficChart(type) {
+            const container = document.getElementById('traffic-bars-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const data = trafficData[type] || trafficData['weekday'];
+
+            data.forEach(item => {
+                const color = item.val >= 75 ? 'bg-red-500 hover:bg-red-400' :
+                              item.val >= 50 ? 'bg-amber-500 hover:bg-amber-400' :
+                              'bg-emerald-500 hover:bg-emerald-400';
+
+                const barWrapper = document.createElement('div');
+                barWrapper.className = 'flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer';
+                
+                barWrapper.innerHTML = `
+                    <!-- Tooltip -->
+                    <div class="absolute -top-10 opacity-0 group-hover:opacity-100 bg-slate-900 border border-slate-700 text-white text-[10px] py-1 px-2 rounded-md font-bold transition-opacity pointer-events-none z-20 whitespace-nowrap shadow-xl">
+                        ${item.time}: ${item.val}% Capacity
+                    </div>
+                    <!-- Bar -->
+                    <div class="w-full ${color} rounded-t-md transition-all duration-500" style="height: ${item.val}%;"></div>
+                `;
+                container.appendChild(barWrapper);
+            });
+        }
+
+        function updateTrafficChart(type) {
+            renderTrafficChart(type);
+
+            const btnWeekday = document.getElementById('chart-btn-weekday');
+            const btnWeekend = document.getElementById('chart-btn-weekend');
+            const label = document.getElementById('chart-schedule-label');
+
+            if (type === 'weekday') {
+                btnWeekday.className = "px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white shadow transition";
+                btnWeekend.className = "px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-white transition";
+                label.innerText = "Weekday Pattern";
+            } else {
+                btnWeekend.className = "px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white shadow transition";
+                btnWeekday.className = "px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-white transition";
+                label.innerText = "Weekend Pattern";
+            }
+        }
+
+        function renderIncidents() {
+            const grid = document.getElementById('incidents-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+
+            incidentsData.forEach(inc => {
+                const colorClass = inc.severity === 'high' ? 'border-red-500/40 bg-red-500/10 text-red-400' :
+                                   'border-amber-500/40 bg-amber-500/10 text-amber-400';
+
+                const card = document.createElement('div');
+                card.className = "bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 hover:border-slate-700 transition shadow-lg";
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="font-bold text-sm text-white flex items-center gap-2">
+                            <i data-lucide="${inc.type === 'crash' ? 'alert-triangle' : 'hard-hat'}" class="w-4 h-4 text-amber-400"></i>
+                            ${inc.title}
+                        </div>
+                        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${colorClass}">${inc.severity}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 font-medium">${inc.location}</p>
+                    <p class="text-xs text-slate-300 leading-relaxed">${inc.description}</p>
+                    <div class="flex justify-between items-center text-[11px] border-t border-slate-800 pt-2 font-semibold">
+                        <span class="text-amber-400 flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> ${inc.delay}</span>
+                        <span class="text-slate-500">${inc.time}</span>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+            initIcons();
+        }
+
+        function selectIncident(id) {
+            const inc = incidentsData.find(i => i.id === id);
+            if (!inc) return;
+            
+            const inspector = document.getElementById('inspector-content');
+            if (!inspector) return;
+            inspector.innerHTML = `
+                <h3 class="font-bold text-white text-base">${inc.title}</h3>
+                <p class="text-xs text-slate-400 mt-0.5">${inc.location}</p>
+                <div class="mt-3 p-3 bg-slate-800/60 rounded-xl text-xs space-y-2 border border-slate-700/50">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Severity:</span>
+                        <span class="text-red-400 font-bold uppercase">${inc.severity}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Estimated Delay:</span>
+                        <span class="text-amber-400 font-bold">${inc.delay}</span>
+                    </div>
+                    <p class="text-slate-300 text-[11px] pt-1 border-t border-slate-700/50">${inc.description}</p>
+                </div>
+            `;
+        }
+
+        function openCamById(camId) {
+            const titleMap = {
+                'cam-1': 'I-85 at WT Harris Blvd (Exit 45)',
+                'cam-2': 'I-77 at Trade Street (Uptown)',
+                'cam-3': 'Craver Rd at University Blvd (UNCC)'
+            };
+            const imgMap = {
+                'cam-1': 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=600&q=80',
+                'cam-2': 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&w=600&q=80',
+                'cam-3': 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=600&q=80'
+            };
+
+            const camTitle = document.getElementById('side-cam-title');
+            const camImg = document.getElementById('side-cam-img');
+            if (camTitle) camTitle.innerText = titleMap[camId] || 'Live Traffic Feed';
+            if (camImg) camImg.src = `${imgMap[camId]}?t=${Date.now()}`;
+        }
+
+        function refreshSideCam() {
+            const img = document.getElementById('side-cam-img');
+            if (img) img.src = img.src.split('?')[0] + '?t=' + Date.now();
+        }
+
+        function toggleVectorLayer(layer) {
+            if (layer === 'highways') {
+                const el = document.getElementById('highways-layer');
+                if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+            } else if (layer === 'cams') {
+                const el = document.getElementById('svg-cameras-layer');
+                if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        const mapViews = {
+            'all': { viewBox: '0 0 1000 650', label: 'View: All Corridors' },
+            'uncc': { viewBox: '520 80 400 260', label: 'View: UNCC Campus Zoom' },
+            'uptown': { viewBox: '260 330 380 250', label: 'View: Uptown Charlotte Zoom' }
+        };
+
+        function setMapView(viewKey) {
+            const mapSvg = document.getElementById('charlotte-svg-map');
+            const targetView = mapViews[viewKey];
+            if (!targetView || !mapSvg) return;
+
+            mapSvg.setAttribute('viewBox', targetView.viewBox);
+
+            const activeTag = document.getElementById('active-view-tag');
+            if (activeTag) activeTag.innerText = targetView.label;
+
+            ['all', 'uncc', 'uptown'].forEach(key => {
+                const btn = document.getElementById(`btn-view-${key}`);
+                if (!btn) return;
+                if (key === viewKey) {
+                    btn.className = "bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold transition shadow-md";
+                } else {
+                    btn.className = "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg font-semibold transition";
+                }
+            });
+
+            if (viewKey === 'uncc') {
+                zoomMap('uncc');
+            } else if (viewKey === 'uptown') {
+                zoomMap('uptown');
+            } else {
+                setMapFilter('all');
+            }
+        }
+
+        function zoomMap(area) {
+            const inspector = document.getElementById('inspector-content');
+            if (!inspector) return;
+
+            if (area === 'uncc') {
+                inspector.innerHTML = `
+                    <h3 class="font-bold text-emerald-400 text-base">🎓 UNC Charlotte Campus Zone</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">W.T. Harris / University Blvd Corridor</p>
+                    <div class="mt-3 p-3 bg-slate-800/60 rounded-xl text-xs space-y-1.5 border border-slate-700/50">
+                        <div class="text-slate-200">Campus traffic flow: <strong>Moderate</strong></div>
+                        <div class="text-slate-400">Parking Decks: East & Union Decks Open</div>
+                        <div class="text-emerald-400 text-[11px] font-medium pt-1">Light Rail: JW Clay Station Active</div>
+                    </div>
+                `;
+            } else if (area === 'uptown') {
+                inspector.innerHTML = `
+                    <h3 class="font-bold text-blue-400 text-base">🏢 Uptown Charlotte Corridor</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Trade & Tryon / I-277 Loop Zone</p>
+                    <div class="mt-3 p-3 bg-slate-800/60 rounded-xl text-xs space-y-1.5 border border-slate-700/50">
+                        <div class="text-slate-200">Center City Flow: <strong>Heavy Traffic</strong></div>
+                        <div class="text-slate-400">I-77 S Ramp: Minor Slowdown</div>
+                        <div class="text-blue-400 text-[11px] font-medium pt-1">Transit: CTC Station Hub Active</div>
+                    </div>
+                `;
+            }
+        }
+
+        function setMapFilter(filterType) {
+            const incLayer = document.getElementById('svg-incidents-layer');
+            const camLayer = document.getElementById('svg-cameras-layer');
+            const inspector = document.getElementById('inspector-content');
+
+            if (filterType === 'all') {
+                if (incLayer) incLayer.style.display = 'block';
+                if (camLayer) camLayer.style.display = 'block';
+                if (inspector) {
+                    inspector.innerHTML = `
+                        <h3 class="font-bold text-white text-base">All Corridors Active</h3>
+                        <p class="text-xs text-slate-400 mt-1">Showing all live Charlotte & UNCC alerts and cameras.</p>
+                        <div class="mt-3 p-3 bg-slate-800/60 rounded-xl text-xs space-y-2 border border-slate-700/50">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Total Tracked Incidents:</span>
+                                <span class="text-amber-400 font-bold">${incidentsData.length} Active</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function runQuickCalc() {
+            const origEl = document.getElementById('hero-calc-origin');
+            const resBox = document.getElementById('hero-calc-res');
+            const timeEl = document.getElementById('hero-calc-time');
+
+            if (!origEl || !resBox || !timeEl) return;
+            const orig = origEl.value;
+
+            let t = orig === 'uptown' ? '24 mins' : orig === 'huntersville' ? '22 mins' : '32 mins';
+            timeEl.innerText = t;
+            resBox.classList.remove('hidden');
+        }
+
+        function submitAlert(e) {
+            e.preventDefault();
+            const typeEl = document.getElementById('report-type');
+            const locEl = document.getElementById('report-loc');
+            const descEl = document.getElementById('report-desc');
+
+            if (!typeEl || !locEl || !descEl) return;
+
+            incidentsData.unshift({
+                id: Date.now(),
+                type: typeEl.value,
+                title: `Community Alert: ${typeEl.value.toUpperCase()}`,
+                location: locEl.value,
+                severity: 'medium',
+                delay: '5-10 min delay',
+                time: 'Just now',
+                description: descEl.value
+            });
+
+            renderIncidents();
+            const successMsg = document.getElementById('report-success');
+            if (successMsg) {
+                successMsg.classList.remove('hidden');
+                setTimeout(() => {
+                    successMsg.classList.add('hidden');
+                }, 4000);
+            }
+            e.target.reset();
+        }
+
+        function refreshData() {
+            const icon = document.getElementById('refresh-icon');
+            if (icon) icon.classList.add('animate-spin');
+            setTimeout(() => {
+                if (icon) icon.classList.remove('animate-spin');
+            }, 700);
+        }
+
+        function startClock() {
+            setInterval(() => {
+                const clock = document.getElementById('live-clock');
+                if (clock) {
+                    const now = new Date();
+                    clock.innerText = now.toLocaleTimeString('en-US');
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
